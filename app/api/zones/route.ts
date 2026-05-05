@@ -1,0 +1,23 @@
+import { NextResponse } from 'next/server'
+import { prisma } from '@/lib/db'
+import { getSession } from '@/lib/auth'
+
+export async function GET() {
+  const zones = await prisma.zone.findMany({ orderBy: { memberCount: 'desc' } })
+  return NextResponse.json(zones)
+}
+
+export async function POST(req: Request) {
+  const session = await getSession()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { name, code, memberCount } = await req.json()
+  if (!name?.trim() || !code?.trim()) {
+    return NextResponse.json({ error: 'Name and code are required' }, { status: 400 })
+  }
+
+  const zone = await prisma.zone.create({
+    data: { name: name.trim(), code: code.trim().toUpperCase(), memberCount: Number(memberCount) || 0 },
+  })
+  return NextResponse.json(zone, { status: 201 })
+}
