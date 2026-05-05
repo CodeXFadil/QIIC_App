@@ -1,12 +1,9 @@
-// For local dev: provider = "sqlite", url = "file:./dev.db"
-// For Vercel (Neon): change provider to "postgresql"
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
