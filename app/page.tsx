@@ -1,10 +1,23 @@
+import dynamic from 'next/dynamic'
 import { prisma } from '@/lib/db'
 import Navbar from '@/components/Navbar'
 import StatsCards from '@/components/StatsCards'
-import ZoneMap from '@/components/ZoneMap'
 import ZoneRankings from '@/components/ZoneRankings'
 
-export const revalidate = 30 // revalidate every 30s
+export const revalidate = 30
+
+// Leaflet must be loaded client-side only (no SSR)
+const ZoneMapLeaflet = dynamic(() => import('@/components/ZoneMapLeaflet'), {
+  ssr: false,
+  loading: () => (
+    <div
+      className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 flex items-center justify-center"
+      style={{ height: 600 }}
+    >
+      <div className="text-gray-400 text-sm animate-pulse">Loading map…</div>
+    </div>
+  ),
+})
 
 async function getZones() {
   return prisma.zone.findMany({ orderBy: { memberCount: 'desc' } })
@@ -29,7 +42,7 @@ export default async function HomePage() {
         {/* Map + Rankings */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
           <div className="lg:col-span-3">
-            <ZoneMap zones={zones} />
+            <ZoneMapLeaflet zones={zones} />
           </div>
           <div className="lg:col-span-2">
             <ZoneRankings zones={zones} />
