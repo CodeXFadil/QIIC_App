@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client')
+const bcrypt = require('bcryptjs')
 
 const prisma = new PrismaClient()
 
@@ -23,6 +24,7 @@ const zones = [
 ]
 
 async function main() {
+  // Seed zones
   console.log('Seeding zones...')
   for (const zone of zones) {
     await prisma.zone.upsert({
@@ -32,6 +34,18 @@ async function main() {
     })
   }
   console.log(`Seeded ${zones.length} zones.`)
+
+  // Seed default admin user from env vars (or fallback)
+  const adminEmail    = process.env.ADMIN_EMAIL    || 'admin@qiic.com'
+  const adminPassword = process.env.ADMIN_PASSWORD || 'admin123'
+  const adminHash     = await bcrypt.hash(adminPassword, 10)
+
+  await prisma.user.upsert({
+    where:  { email: adminEmail },
+    update: { passwordHash: adminHash, role: 'admin' },
+    create: { email: adminEmail, passwordHash: adminHash, role: 'admin', name: 'Admin' },
+  })
+  console.log(`Admin user ready: ${adminEmail}`)
 }
 
 main()
