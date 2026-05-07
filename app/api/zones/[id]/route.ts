@@ -7,6 +7,7 @@ type Params = { params: { id: string } }
 export async function PUT(req: Request, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const id = parseInt(params.id)
   const { name, code, memberCount } = await req.json()
@@ -25,6 +26,7 @@ export async function PUT(req: Request, { params }: Params) {
 export async function DELETE(_req: Request, { params }: Params) {
   const session = await getSession()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   await prisma.zone.delete({ where: { id: parseInt(params.id) } })
   return NextResponse.json({ ok: true })

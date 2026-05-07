@@ -4,14 +4,20 @@ import { signToken, COOKIE } from '@/lib/auth'
 export async function POST(req: Request) {
   const { email, password } = await req.json()
 
-  const validEmail = process.env.ADMIN_EMAIL ?? 'admin@qiic.com'
-  const validPassword = process.env.ADMIN_PASSWORD ?? 'admin123'
+  const adminEmail    = process.env.ADMIN_EMAIL    ?? 'admin@qiic.com'
+  const adminPassword = process.env.ADMIN_PASSWORD ?? 'admin123'
+  const viewerEmail    = process.env.VIEWER_EMAIL    ?? 'viewer@qiic.com'
+  const viewerPassword = process.env.VIEWER_PASSWORD ?? 'viewer123'
 
-  if (email !== validEmail || password !== validPassword) {
+  let role: string | null = null
+  if (email === adminEmail  && password === adminPassword)  role = 'admin'
+  if (email === viewerEmail && password === viewerPassword) role = 'viewer'
+
+  if (!role) {
     return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
   }
 
-  const token = await signToken({ email, role: 'admin' })
+  const token = await signToken({ email, role })
 
   const res = NextResponse.json({ ok: true })
   res.cookies.set(COOKIE, token, {

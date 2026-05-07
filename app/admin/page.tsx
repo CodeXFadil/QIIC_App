@@ -78,6 +78,7 @@ export default function AdminPage() {
   const [zones, setZones] = useState<Zone[]>([])
   const [editing, setEditing] = useState<Partial<Zone> | null>(null)
   const [loading, setLoading] = useState(true)
+  const [role, setRole] = useState<string>('viewer')
 
   async function load() {
     const res = await fetch('/api/zones')
@@ -85,7 +86,16 @@ export default function AdminPage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  // Read role from the JWT cookie via a lightweight API call
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((d) => { if (d.role) setRole(d.role) })
+      .catch(() => {})
+    load()
+  }, [])
+
+  const isAdmin = role === 'admin'
 
   async function handleSave(data: { name: string; code: string; memberCount: number }) {
     if (editing?.id) {
@@ -116,18 +126,43 @@ export default function AdminPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Manage Zones</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-gray-900">Manage Zones</h1>
+              {/* Role badge */}
+              <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+                isAdmin
+                  ? 'bg-brand-100 text-brand-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}>
+                {isAdmin ? 'Admin' : 'Viewer'}
+              </span>
+            </div>
             <p className="text-sm text-gray-500 mt-0.5">
               {zones.length} zones · {total.toLocaleString()} total members
+              {!isAdmin && (
+                <span className="ml-2 text-amber-600">· View only</span>
+              )}
             </p>
           </div>
-          <button
-            onClick={() => setEditing({})}
-            className="bg-brand-700 hover:bg-brand-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
-          >
-            <span>+</span> Add Zone
-          </button>
+
+          {/* Only admins see Add Zone */}
+          {isAdmin && (
+            <button
+              onClick={() => setEditing({})}
+              className="bg-brand-700 hover:bg-brand-800 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+            >
+              <span>+</span> Add Zone
+            </button>
+          )}
         </div>
+
+        {/* Viewer notice banner */}
+        {!isAdmin && (
+          <div className="mb-4 flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 text-sm rounded-xl px-4 py-3">
+            <span>👁️</span>
+            <span>You have <strong>view-only</strong> access. Contact the admin to make changes.</span>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           {loading ? (
@@ -142,7 +177,7 @@ export default function AdminPage() {
                   <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Code</th>
                   <th className="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Members</th>
                   <th className="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Share</th>
-                  <th className="px-5 py-3"></th>
+                  {isAdmin && <th className="px-5 py-3"></th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -160,22 +195,24 @@ export default function AdminPage() {
                     <td className="px-5 py-3.5 text-right text-gray-500">
                       {total > 0 ? ((zone.memberCount / total) * 100).toFixed(1) : '0.0'}%
                     </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          onClick={() => setEditing(zone)}
-                          className="text-brand-600 hover:text-brand-800 font-medium text-xs px-2 py-1 rounded hover:bg-brand-50 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(zone.id)}
-                          className="text-red-500 hover:text-red-700 font-medium text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
+                    {isAdmin && (
+                      <td className="px-5 py-3.5">
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={() => setEditing(zone)}
+                            className="text-brand-600 hover:text-brand-800 font-medium text-xs px-2 py-1 rounded hover:bg-brand-50 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(zone.id)}
+                            className="text-red-500 hover:text-red-700 font-medium text-xs px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -184,7 +221,7 @@ export default function AdminPage() {
         </div>
       </main>
 
-      {editing !== null && (
+      {editing !== null && isAdmin && (
         <Modal
           zone={editing}
           onClose={() => setEditing(null)}
