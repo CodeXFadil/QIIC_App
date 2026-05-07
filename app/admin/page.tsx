@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Navbar from '@/components/Navbar'
 
-type Zone = { id: number; name: string; code: string; memberCount: number }
+type Zone = { id: number; name: string; code: string; memberCount: number; latitude: number | null; longitude: number | null }
 type User = { id: number; email: string; name: string | null; role: string; createdAt: string }
 type Tab  = 'zones' | 'users'
 
@@ -11,16 +11,22 @@ type Tab  = 'zones' | 'users'
 function ZoneModal({ zone, onClose, onSave }: {
   zone: Partial<Zone>
   onClose: () => void
-  onSave: (d: { name: string; code: string; memberCount: number }) => Promise<void>
+  onSave: (d: { name: string; code: string; memberCount: number; latitude?: number | null; longitude?: number | null }) => Promise<void>
 }) {
   const [name, setName]   = useState(zone.name ?? '')
   const [code, setCode]   = useState(zone.code ?? '')
   const [count, setCount] = useState(zone.memberCount?.toString() ?? '0')
+  const [lat, setLat]     = useState(zone.latitude?.toString()  ?? '')
+  const [lng, setLng]     = useState(zone.longitude?.toString() ?? '')
   const [saving, setSaving] = useState(false)
 
   async function submit(e: React.FormEvent) {
     e.preventDefault(); setSaving(true)
-    await onSave({ name, code, memberCount: parseInt(count) || 0 })
+    await onSave({
+      name, code, memberCount: parseInt(count) || 0,
+      latitude:  lat ? parseFloat(lat)  : null,
+      longitude: lng ? parseFloat(lng) : null,
+    })
     setSaving(false); onClose()
   }
   return (
@@ -35,6 +41,26 @@ function ZoneModal({ zone, onClose, onSave }: {
             <label className="block text-xs font-medium text-gray-500 mb-1">Member Count</label>
             <input type="number" min={0} value={count} onChange={(e) => setCount(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          </div>
+          {/* Map coordinates */}
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs font-medium text-gray-500 mb-2">
+              Map Location <span className="text-gray-400 font-normal">(optional — find on <a href="https://www.google.com/maps" target="_blank" rel="noreferrer" className="underline">Google Maps</a>, right-click → copy coordinates)</span>
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Latitude</label>
+                <input type="number" step="any" value={lat} onChange={(e) => setLat(e.target.value)}
+                  placeholder="25.2854"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Longitude</label>
+                <input type="number" step="any" value={lng} onChange={(e) => setLng(e.target.value)}
+                  placeholder="51.5310"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              </div>
+            </div>
           </div>
           <ModalButtons saving={saving} onClose={onClose} />
         </form>
@@ -147,7 +173,7 @@ export default function AdminPage() {
     const r = await fetch('/api/users'); if (r.ok) setUsers(await r.json())
   }
 
-  async function saveZone(data: { name: string; code: string; memberCount: number }) {
+  async function saveZone(data: { name: string; code: string; memberCount: number; latitude?: number | null; longitude?: number | null }) {
     await fetch(zoneModal?.id ? `/api/zones/${zoneModal.id}` : '/api/zones', {
       method: zoneModal?.id ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -243,6 +269,7 @@ export default function AdminPage() {
                     <th className="text-left px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Code</th>
                     <th className="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Members</th>
                     <th className="text-right px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Share</th>
+                    <th className="text-center px-5 py-3 text-xs font-semibold text-gray-400 uppercase tracking-wider">Pin</th>
                     {isAdmin && <th className="px-5 py-3" />}
                   </tr>
                 </thead>
@@ -256,6 +283,11 @@ export default function AdminPage() {
                       <td className="px-5 py-3.5 text-right font-semibold text-gray-900">{zone.memberCount.toLocaleString()}</td>
                       <td className="px-5 py-3.5 text-right text-gray-500">
                         {total > 0 ? ((zone.memberCount / total) * 100).toFixed(1) : '0.0'}%
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        {zone.latitude && zone.longitude
+                          ? <span title={`${zone.latitude}, ${zone.longitude}`} className="text-brand-600 text-sm">📍</span>
+                          : <span title="No coordinates set" className="text-gray-300 text-sm">—</span>}
                       </td>
                       {isAdmin && (
                         <td className="px-5 py-3.5">

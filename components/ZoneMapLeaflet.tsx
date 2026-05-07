@@ -7,27 +7,8 @@ type Zone = {
   name: string
   code: string
   memberCount: number
-}
-
-// Approximate lat/lng centres for each Qatar zone
-const ZONE_COORDS: Record<string, [number, number]> = {
-  DOH: [25.2854, 51.5310],
-  IND: [25.1527, 51.4475],
-  WKR: [25.1704, 51.5966],
-  RYN: [25.2913, 51.4241],
-  KHR: [25.6804, 51.4963],
-  ABH: [25.2361, 51.4683],
-  LUS: [25.4186, 51.4897],
-  AKH: [25.1147, 51.5052],
-  WBY: [25.3285, 51.5304],
-  MUT: [25.2664, 51.3958],
-  UMS: [25.4046, 51.3966],
-  PRL: [25.3742, 51.5520],
-  SHM: [26.1586, 51.2150],
-  THK: [25.7299, 51.5923],
-  KHS: [25.5052, 51.5296],
-  DKH: [25.4312, 50.7891],
-  ANK: [25.0856, 51.5063],
+  latitude:  number | null
+  longitude: number | null
 }
 
 function getColor(count: number, max: number): string {
@@ -41,14 +22,8 @@ function getColor(count: number, max: number): string {
   return '#8ed0ae'
 }
 
-function getRadius(count: number, max: number): number {
-  if (count === 0) return 8000
-  const pct = count / max
-  return 8000 + pct * 28000  // 8km – 36km radius
-}
-
 export default function ZoneMapLeaflet({ zones }: { zones: Zone[] }) {
-  const mapRef = useRef<HTMLDivElement>(null)
+  const mapRef         = useRef<HTMLDivElement>(null)
   const mapInstanceRef = useRef<unknown>(null)
 
   const max = Math.max(...zones.map((z) => z.memberCount), 1)
@@ -56,15 +31,21 @@ export default function ZoneMapLeaflet({ zones }: { zones: Zone[] }) {
   useEffect(() => {
     if (!mapRef.current || mapInstanceRef.current) return
 
-    // Dynamically import Leaflet (no SSR)
+    // Load Leaflet CSS once
+    if (!document.querySelector('#leaflet-css')) {
+      const link = document.createElement('link')
+      link.id = 'leaflet-css'; link.rel = 'stylesheet'
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
+      document.head.appendChild(link)
+    }
+
     import('leaflet').then((L) => {
-      // Fix default icon paths broken by webpack
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       delete (L.Icon.Default.prototype as any)._getIconUrl
       L.Icon.Default.mergeOptions({
         iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+        iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
       })
 
       const map = L.map(mapRef.current!, {
@@ -73,54 +54,62 @@ export default function ZoneMapLeaflet({ zones }: { zones: Zone[] }) {
         zoomControl: true,
         scrollWheelZoom: true,
       })
-
       mapInstanceRef.current = map
 
-      // OpenStreetMap tiles
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 18,
       }).addTo(map)
 
-      // Draw a circle for every zone
-      zones.forEach((zone) => {
-        const coords = ZONE_COORDS[zone.code]
-        if (!coords) return
+      const zonesWithCoords  = zones.filter((z) => z.latitude && z.longitude)
+      const zonesWithout     = zones.filter((z) => !z.latitude || !z.longitude)
 
-        const color = getColor(zone.memberCount, max)
-        const radius = getRadius(zone.memberCount, max)
+      // Draw fixed-size circles — color only shows intensity, no size scaling
+      zonesWithCoords.forEach((zone) => {
+        const color  = getColor(zone.memberCount, max)
+        // Fixed radius: 3 km for all zones — no overlap
+        const radius = 3000
 
-        const circle = L.circle(coords, {
+        const circle = L.circle([zone.latitude!, zone.longitude!], {
           color,
           fillColor: color,
-          fillOpacity: 0.6,
-          weight: 2,
+          fillOpacity: 0.75,
+          weight: 1.5,
           radius,
         }).addTo(map)
 
-        const popupHtml = `
-          <div style="font-family:sans-serif;min-width:130px">
-            <div style="font-weight:700;font-size:14px;margin-bottom:4px">${zone.name}</div>
-            <div style="font-size:13px;color:#374151">
-              <span style="font-weight:600;font-size:16px">${zone.memberCount.toLocaleString()}</span> members
+        const pct = max > 0 ? ((zone.memberCount / zones.reduce((s,z)=>s+z.memberCount,0))*100).toFixed(1) : '0'
+
+        circle.bindPopup(`
+          <div style="font-family:sans-serif;min-width:150px;padding:2px">
+            <div style="font-weight:700;font-size:14px;color:#111">${zone.name}</div>
+            <div style="margin-top:6px;font-size:13px;color:#374151">
+              <strong style="font-size:18px">${zone.memberCount.toLocaleString()}</strong> members
             </div>
-            <div style="font-size:11px;color:#9ca3af;margin-top:2px">${zone.code}</div>
-          </div>`
+            <div style="margin-top:2px;font-size:11px;color:#6b7280">${pct}% of total · ${zone.code}</div>
+          </div>`, { closeButton: false })
 
-        circle.bindPopup(popupHtml, { closeButton: false, offset: [0, -4] })
-        circle.on('mouseover', function () { circle.openPopup() })
-        circle.on('mouseout',  function () { circle.closePopup() })
+        circle.on('mouseover', () => circle.openPopup())
+        circle.on('mouseout',  () => circle.closePopup())
       })
-    })
 
-    // Leaflet CSS
-    if (!document.querySelector('#leaflet-css')) {
-      const link = document.createElement('link')
-      link.id = 'leaflet-css'
-      link.rel = 'stylesheet'
-      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
-      document.head.appendChild(link)
-    }
+      // Warning panel for zones missing coordinates
+      if (zonesWithout.length > 0) {
+        const names = zonesWithout.map(z => z.name).join(', ')
+        const info = L.control({ position: 'bottomleft' })
+        info.onAdd = () => {
+          const div = L.DomUtil.create('div')
+          div.innerHTML = `
+            <div style="background:white;padding:6px 10px;border-radius:8px;font-size:11px;
+                        color:#92400e;border:1px solid #fde68a;max-width:220px;line-height:1.4">
+              ⚠️ No coordinates: <strong>${names}</strong><br>
+              <span style="color:#9ca3af">Set lat/lng in Manage Zones</span>
+            </div>`
+          return div
+        }
+        info.addTo(map)
+      }
+    })
 
     return () => {
       if (mapInstanceRef.current) {
@@ -132,35 +121,26 @@ export default function ZoneMapLeaflet({ zones }: { zones: Zone[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Update circles when data changes
-  useEffect(() => {
-    if (!mapInstanceRef.current) return
-    // Circles are rebuilt on mount; for live updates a full re-init suffices
-  }, [zones])
-
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 h-full">
       <h2 className="text-base font-semibold text-gray-800 mb-4">Qatar Zone Map</h2>
-      <div
-        ref={mapRef}
-        className="rounded-xl overflow-hidden w-full"
-        style={{ height: '520px' }}
-      />
+      <div ref={mapRef} className="rounded-xl overflow-hidden w-full" style={{ height: '520px' }} />
       {/* Legend */}
       <div className="mt-3 flex items-center gap-3 flex-wrap">
         <span className="text-xs text-gray-400 font-medium">Members:</span>
         {[
-          { color: '#8ed0ae', label: 'Low' },
+          { color: '#8ed0ae', label: 'Low'    },
           { color: '#2d9e6a', label: 'Medium' },
-          { color: '#155e3e', label: 'High' },
-          { color: '#0d3d28', label: 'Top' },
-          { color: '#94a3b8', label: 'None' },
+          { color: '#155e3e', label: 'High'   },
+          { color: '#0d3d28', label: 'Top'    },
+          { color: '#94a3b8', label: 'None'   },
         ].map(({ color, label }) => (
           <div key={label} className="flex items-center gap-1">
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: color }} />
             <span className="text-xs text-gray-500">{label}</span>
           </div>
         ))}
+        <span className="text-xs text-gray-400 ml-2">· Hover a circle for details</span>
       </div>
     </div>
   )

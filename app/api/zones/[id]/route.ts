@@ -10,7 +10,7 @@ export async function PUT(req: Request, { params }: Params) {
   if (session.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const id = parseInt(params.id)
-  const { name, code, memberCount } = await req.json()
+  const { name, code, memberCount, latitude, longitude } = await req.json()
 
   const zone = await prisma.zone.update({
     where: { id },
@@ -18,6 +18,8 @@ export async function PUT(req: Request, { params }: Params) {
       ...(name && { name: name.trim() }),
       ...(code && { code: code.trim().toUpperCase() }),
       memberCount: Number(memberCount) ?? 0,
+      latitude:  latitude  !== undefined ? (latitude  ? Number(latitude)  : null) : undefined,
+      longitude: longitude !== undefined ? (longitude ? Number(longitude) : null) : undefined,
     },
   })
   return NextResponse.json(zone)

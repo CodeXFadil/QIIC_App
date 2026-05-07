@@ -12,6 +12,8 @@ model Zone {
   name        String
   code        String   @unique
   memberCount Int      @default(0)
+  latitude    Float?   // optional — set from admin panel
+  longitude   Float?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
