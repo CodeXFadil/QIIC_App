@@ -216,12 +216,6 @@ export default function AdminPage() {
               isAdmin ? 'bg-brand-100 text-brand-700' : 'bg-amber-100 text-amber-700'
             }`}>{isAdmin ? 'Admin' : 'Viewer'}</span>
           </div>
-          {isAdmin && tab === 'zones' && (
-            <button onClick={() => setZoneModal({})}
-              className="bg-brand-700 hover:bg-brand-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
-              <span>+</span> Add Zone
-            </button>
-          )}
           {isAdmin && tab === 'users' && (
             <button onClick={() => setUserModal({})}
               className="bg-brand-700 hover:bg-brand-800 text-white px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
